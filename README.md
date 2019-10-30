@@ -1,3 +1,6 @@
+# viper
+copy of github.com/spf13/viper for cli vendoring purposes
+
 ![viper logo](https://cloud.githubusercontent.com/assets/173412/10886745/998df88a-8151-11e5-9448-4736db51020d.png)
 
 Go configuration with fangs!
@@ -386,7 +389,7 @@ err := viper.ReadRemoteConfig()
 ```
 
 #### Consul
-You need to set a key to Consul key/value storage with JSON value containing your desired config.  
+You need to set a key to Consul key/value storage with JSON value containing your desired config.
 For example, create a Consul key/value store key `MY_CONSUL_KEY` with value:
 
 ```json
@@ -619,14 +622,14 @@ if err != nil {
 
 ### Marshalling to string
 
-You may need to marhsal all the settings held in viper into a string rather than write them to a file. 
+You may need to marhsal all the settings held in viper into a string rather than write them to a file.
 You can use your favorite format's marshaller with the config returned by `AllSettings()`.
 
 ```go
 import (
     yaml "gopkg.in/yaml.v2"
     // ...
-) 
+)
 
 func yamlStringSettings() string {
     c := viper.AllSettings()
