@@ -299,7 +299,8 @@ func (v *Viper) WatchConfig() {
 			return
 		}
 
-		configFile := filepath.Clean(filenames[0])
+		filename := filenames[0]
+		configFile := filepath.Clean(filename)
 		configDir, _ := filepath.Split(configFile)
 		realConfigFile, _ := filepath.EvalSymlinks(filename)
 
@@ -356,7 +357,7 @@ func (v *Viper) WatchConfig() {
 func SetConfigFile(in string) { v.SetConfigFile(in) }
 func (v *Viper) SetConfigFile(in string) {
 	if in != "" {
-		v.configFile = in
+		v.configFiles = []string{in}
 	}
 }
 
@@ -404,8 +405,8 @@ func (v *Viper) getEnv(key string) (string, bool) {
 }
 
 // ConfigFileUsed returns the file used to populate the config registry.
-func ConfigFilesUsed() []string          { return v.ConfigFilesUsed() }
-func (v *Viper) ConfigFilesUsed() string { return v.configFiles }
+func ConfigFilesUsed() []string            { return v.ConfigFilesUsed() }
+func (v *Viper) ConfigFilesUsed() []string { return v.configFiles }
 
 // AddConfigPath adds a path for Viper to search for the config file in.
 // Can be called multiple times to define multiple search paths.
@@ -1246,7 +1247,7 @@ func (v *Viper) ReadInConfig() error {
 		return err
 	}
 
-	if len(filenames == 0) {
+	if len(filenames) == 0 {
 		return nil
 	}
 
@@ -1281,10 +1282,12 @@ func (v *Viper) ReadInConfig() error {
 func MergeInConfig() error { return v.MergeInConfig() }
 func (v *Viper) MergeInConfig() error {
 	jww.INFO.Println("Attempting to merge in config file")
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
+
+	filename := filenames[0]
 
 	if !stringInSlice(v.getConfigType(), SupportedExts) {
 		return UnsupportedConfigError(v.getConfigType())
@@ -1331,21 +1334,21 @@ func (v *Viper) MergeConfigMap(cfg map[string]interface{}) error {
 // WriteConfig writes the current configuration to a file.
 func WriteConfig() error { return v.WriteConfig() }
 func (v *Viper) WriteConfig() error {
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
-	return v.writeConfig(filename, true)
+	return v.writeConfig(filenames[0], true)
 }
 
 // SafeWriteConfig writes current configuration to file only if the file does not exist.
 func SafeWriteConfig() error { return v.SafeWriteConfig() }
 func (v *Viper) SafeWriteConfig() error {
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
-	return v.writeConfig(filename, false)
+	return v.writeConfig(filenames[0], false)
 }
 
 // WriteConfigAs writes current configuration to a given filename.
@@ -1832,7 +1835,7 @@ func SetConfigName(in string) { v.SetConfigName(in) }
 func (v *Viper) SetConfigName(in string) {
 	if in != "" {
 		v.configName = in
-		v.configFile = ""
+		v.configFiles = []string{""}
 	}
 }
 
@@ -1856,12 +1859,12 @@ func (v *Viper) getConfigType() string {
 		return v.configType
 	}
 
-	cf, err := v.getConfigFile()
+	cf, err := v.getConfigFiles()
 	if err != nil {
 		return ""
 	}
 
-	ext := filepath.Ext(cf)
+	ext := filepath.Ext(cf[0])
 
 	if len(ext) > 1 {
 		return ext[1:]
@@ -1874,9 +1877,9 @@ func (v *Viper) getConfigFiles() ([]string, error) {
 	if len(v.configFiles) == 0 {
 		cf, err := v.findConfigFiles()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		v.configFile = cf
+		v.configFiles = cf
 	}
 	return v.configFiles, nil
 }
