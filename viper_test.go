@@ -318,7 +318,7 @@ func TestSearchInPath_WithoutConfigTypeSet(t *testing.T) {
 		_ = v.fs.Remove(file)
 	}()
 	assert.NoError(t, createErr)
-	_, err := v.getConfigFile()
+	_, err := v.getConfigFiles()
 	// unless config type is set, files without extension
 	// are not considered
 	assert.Error(t, err)
@@ -336,8 +336,8 @@ func TestSearchInPath(t *testing.T) {
 		_ = v.fs.Remove(file)
 	}()
 	assert.NoError(t, createErr)
-	filename, err := v.getConfigFile()
-	assert.Equal(t, file, filename)
+	filenames, err := v.getConfigFiles()
+	assert.Equal(t, file, filenames[0])
 	assert.NoError(t, err)
 }
 
@@ -356,8 +356,8 @@ func TestSearchInPath_FilesOnly(t *testing.T) {
 	v.AddConfigPath("/tmp")
 	v.AddConfigPath("/tmp/config")
 
-	filename, err := v.getConfigFile()
-	assert.Equal(t, "/tmp/config/config.yaml", filename)
+	filenames, err := v.getConfigFiles()
+	assert.Equal(t, "/tmp/config/config.yaml", filenames[0])
 	assert.NoError(t, err)
 }
 
@@ -1241,7 +1241,7 @@ func TestDirsSearch(t *testing.T) {
 	err = v.ReadInConfig()
 	assert.Nil(t, err)
 
-	assert.Equal(t, `value is `+filepath.Base(v.configPaths[0]), v.GetString(`key`))
+	assert.Equal(t, `value is `+filepath.Base(v.configPaths[3]), v.GetString(`key`))
 }
 
 func TestWrongDirsSearchNotFound(t *testing.T) {
