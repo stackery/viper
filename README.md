@@ -1,5 +1,8 @@
 # viper
-copy of github.com/spf13/viper for cli vendoring purposes
+Copy of github.com/spf13/viper for cli vendoring purposes
+Updated to support combining config files
+
+---
 
 ![viper logo](https://cloud.githubusercontent.com/assets/173412/10886745/998df88a-8151-11e5-9448-4736db51020d.png)
 

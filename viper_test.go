@@ -191,7 +191,7 @@ func initHcl() {
 func initDirs(t *testing.T) (string, string, func()) {
 
 	var (
-		testDirs = []string{`a a`, `b`, `c\c`, `D_`}
+		testDirs = []string{`a a`, `b`, `c\\c`, `D_`}
 		config   = `improbable`
 	)
 
@@ -216,7 +216,7 @@ func initDirs(t *testing.T) (string, string, func()) {
 
 		err = ioutil.WriteFile(
 			path.Join(dir, config+".toml"),
-			[]byte("key = \"value is "+dir+"\"\n"),
+			[]byte("key = \"value is "+strings.Replace(dir, "\\", "\\\\", -1)+"\"\n"),
 			0640)
 		assert.Nil(t, err)
 	}
@@ -251,8 +251,8 @@ func (s *stringValue) String() string {
 
 func TestBasics(t *testing.T) {
 	SetConfigFile("/tmp/config.yaml")
-	filename, err := v.getConfigFile()
-	assert.Equal(t, "/tmp/config.yaml", filename)
+	filename, err := v.getConfigFiles()
+	assert.Equal(t, "/tmp/config.yaml", filename[0])
 	assert.NoError(t, err)
 }
 
@@ -868,7 +868,7 @@ func TestDirsSearch(t *testing.T) {
 	err = v.ReadInConfig()
 	assert.Nil(t, err)
 
-	assert.Equal(t, `value is `+path.Base(v.configPaths[0]), v.GetString(`key`))
+	assert.Equal(t, `value is `+path.Base(v.configPaths[3]), v.GetString(`key`))
 }
 
 func TestWrongDirsSearchNotFound(t *testing.T) {
@@ -1313,7 +1313,7 @@ func TestUnmarshalingWithAliases(t *testing.T) {
 func TestSetConfigNameClearsFileCache(t *testing.T) {
 	SetConfigFile("/tmp/config.yaml")
 	SetConfigName("default")
-	f, err := v.getConfigFile()
+	f, err := v.getConfigFiles()
 	if err == nil {
 		t.Fatalf("config file cache should have been cleared")
 	}

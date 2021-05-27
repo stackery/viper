@@ -181,7 +181,7 @@ type Viper struct {
 
 	// Name of file to look for inside the path
 	configName        string
-	configFile        string
+	configFiles       []string
 	configType        string
 	configPermissions os.FileMode
 	envPrefix         string
@@ -291,11 +291,12 @@ func (v *Viper) WatchConfig() {
 		}
 		defer watcher.Close()
 		// we have to watch the entire directory to pick up renames/atomic saves in a cross-platform way
-		filename, err := v.getConfigFile()
+		filenames, err := v.getConfigFiles()
 		if err != nil {
 			log.Printf("error: %v\n", err)
 			return
 		}
+		filename := filenames[0]
 
 		configFile := filepath.Clean(filename)
 		configDir, _ := filepath.Split(configFile)
@@ -354,7 +355,7 @@ func (v *Viper) WatchConfig() {
 func SetConfigFile(in string) { v.SetConfigFile(in) }
 func (v *Viper) SetConfigFile(in string) {
 	if in != "" {
-		v.configFile = in
+		v.configFiles = []string{in}
 	}
 }
 
@@ -401,9 +402,9 @@ func (v *Viper) getEnv(key string) (string, bool) {
 	return val, ok && (v.allowEmptyEnv || val != "")
 }
 
-// ConfigFileUsed returns the file used to populate the config registry.
-func ConfigFileUsed() string            { return v.ConfigFileUsed() }
-func (v *Viper) ConfigFileUsed() string { return v.configFile }
+// ConfigFilesUsed returns the file used to populate the config registry.
+func ConfigFilesUsed() []string            { return v.ConfigFilesUsed() }
+func (v *Viper) ConfigFilesUsed() []string { return v.configFiles }
 
 // AddConfigPath adds a path for Viper to search for the config file in.
 // Can be called multiple times to define multiple search paths.
@@ -1221,29 +1222,41 @@ func (v *Viper) Set(key string, value interface{}) {
 func ReadInConfig() error { return v.ReadInConfig() }
 func (v *Viper) ReadInConfig() error {
 	jww.INFO.Println("Attempting to read in config file")
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
 
-	if !stringInSlice(v.getConfigType(), SupportedExts) {
-		return UnsupportedConfigError(v.getConfigType())
+	if len(filenames) == 0 {
+		return nil
 	}
 
-	jww.DEBUG.Println("Reading file: ", filename)
-	file, err := afero.ReadFile(v.fs, filename)
-	if err != nil {
-		return err
+	combinedConfig := make(map[string]interface{})
+
+	for _, filename := range filenames {
+		if !stringInSlice(v.getConfigType(), SupportedExts) {
+			return UnsupportedConfigError(v.getConfigType())
+		}
+
+		jww.DEBUG.Println("Reading file: ", filename)
+		file, err := afero.ReadFile(v.fs, filename)
+		if err != nil {
+			return err
+		}
+
+		config := make(map[string]interface{})
+
+		err = v.unmarshalReader(bytes.NewReader(file), config)
+		if err != nil {
+			return err
+		}
+
+		for k, v := range config {
+			combinedConfig[k] = v
+		}
 	}
 
-	config := make(map[string]interface{})
-
-	err = v.unmarshalReader(bytes.NewReader(file), config)
-	if err != nil {
-		return err
-	}
-
-	v.config = config
+	v.config = combinedConfig
 	return nil
 }
 
@@ -1251,10 +1264,11 @@ func (v *Viper) ReadInConfig() error {
 func MergeInConfig() error { return v.MergeInConfig() }
 func (v *Viper) MergeInConfig() error {
 	jww.INFO.Println("Attempting to merge in config file")
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
+	filename := filenames[0]
 
 	if !stringInSlice(v.getConfigType(), SupportedExts) {
 		return UnsupportedConfigError(v.getConfigType())
@@ -1301,20 +1315,22 @@ func (v *Viper) MergeConfigMap(cfg map[string]interface{}) error {
 // WriteConfig writes the current configuration to a file.
 func WriteConfig() error { return v.WriteConfig() }
 func (v *Viper) WriteConfig() error {
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
+	filename := filenames[0]
 	return v.writeConfig(filename, true)
 }
 
 // SafeWriteConfig writes current configuration to file only if the file does not exist.
 func SafeWriteConfig() error { return v.SafeWriteConfig() }
 func (v *Viper) SafeWriteConfig() error {
-	filename, err := v.getConfigFile()
+	filenames, err := v.getConfigFiles()
 	if err != nil {
 		return err
 	}
+	filename := filenames[0]
 	return v.writeConfig(filename, false)
 }
 
@@ -1778,7 +1794,7 @@ func SetConfigName(in string) { v.SetConfigName(in) }
 func (v *Viper) SetConfigName(in string) {
 	if in != "" {
 		v.configName = in
-		v.configFile = ""
+		v.configFiles = nil
 	}
 }
 
@@ -1802,10 +1818,11 @@ func (v *Viper) getConfigType() string {
 		return v.configType
 	}
 
-	cf, err := v.getConfigFile()
+	files, err := v.getConfigFiles()
 	if err != nil {
 		return ""
 	}
+	cf := files[0]
 
 	ext := filepath.Ext(cf)
 
@@ -1816,15 +1833,15 @@ func (v *Viper) getConfigType() string {
 	return ""
 }
 
-func (v *Viper) getConfigFile() (string, error) {
-	if v.configFile == "" {
-		cf, err := v.findConfigFile()
+func (v *Viper) getConfigFiles() ([]string, error) {
+	if len(v.configFiles) == 0 {
+		cf, err := v.findConfigFiles()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		v.configFile = cf
+		v.configFiles = cf
 	}
-	return v.configFile, nil
+	return v.configFiles, nil
 }
 
 func (v *Viper) searchInPath(in string) (filename string) {
@@ -1841,17 +1858,22 @@ func (v *Viper) searchInPath(in string) (filename string) {
 }
 
 // Search all configPaths for any config file.
-// Returns the first path that exists (and is a config file).
-func (v *Viper) findConfigFile() (string, error) {
-	jww.INFO.Println("Searching for config in ", v.configPaths)
+// Returns a list of paths that exist and are config files
+func (v *Viper) findConfigFiles() ([]string, error) {
+	jww.INFO.Println("Searching for configs in ", v.configPaths)
+
+	configFiles := make([]string, 0)
 
 	for _, cp := range v.configPaths {
 		file := v.searchInPath(cp)
 		if file != "" {
-			return file, nil
+			configFiles = append(configFiles, file)
 		}
 	}
-	return "", ConfigFileNotFoundError{v.configName, fmt.Sprintf("%s", v.configPaths)}
+	if len(configFiles) == 0 {
+		return nil, ConfigFileNotFoundError{v.configName, fmt.Sprintf("%s", v.configPaths)}
+	}
+	return configFiles, nil
 }
 
 // Debug prints all configuration registries for debugging
